@@ -9,14 +9,22 @@ function formatDay(timestamp) {
   }).format(new Date(timestamp * 1000))
 }
 
-function buildFallbackWeather(query) {
+function formatTemperature(value) {
+  return Math.round(value)
+}
+
+function buildFallbackWeather(query, unit) {
+  const baseTemperature = unit === 'imperial' ? 70 : 21
+  const baseFeelsLike = unit === 'imperial' ? 72 : 22
+  const baseWind = unit === 'imperial' ? 9 : 14
+
   return {
     city: query || defaultCity,
     country: 'GB',
-    temperature: 21,
-    feelsLike: 22,
+    temperature: baseTemperature,
+    feelsLike: baseFeelsLike,
     humidity: 56,
-    wind: 14,
+    wind: baseWind,
     condition: 'Clear',
     description: 'clear sky',
     icon: '01d',
@@ -25,14 +33,15 @@ function buildFallbackWeather(query) {
   }
 }
 
-function buildFallbackForecast() {
-  return [
-    { date: Date.now() / 1000 + 86400, temp: 22, condition: 'Clear', icon: '01d' },
-    { date: Date.now() / 1000 + 172800, temp: 20, condition: 'Clouds', icon: '02d' },
-    { date: Date.now() / 1000 + 259200, temp: 19, condition: 'Rain', icon: '10d' },
-    { date: Date.now() / 1000 + 345600, temp: 18, condition: 'Clouds', icon: '03d' },
-    { date: Date.now() / 1000 + 432000, temp: 21, condition: 'Clear', icon: '01d' },
-  ]
+function buildFallbackForecast(unit) {
+  const baseTemps = unit === 'imperial' ? [72, 68, 66, 64, 70] : [22, 20, 19, 18, 21]
+
+  return baseTemps.map((temp, index) => ({
+    date: Date.now() / 1000 + (index + 1) * 86400,
+    temp,
+    condition: ['Clear', 'Clouds', 'Rain', 'Clouds', 'Clear'][index],
+    icon: ['01d', '02d', '10d', '03d', '01d'][index],
+  }))
 }
 
 function App() {
@@ -42,8 +51,11 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState('')
   const [isDemoMode, setIsDemoMode] = useState(false)
+  const [unit, setUnit] = useState('metric')
 
   const apiKey = import.meta.env.VITE_OPENWEATHER_API_KEY?.trim()
+  const unitLabel = unit === 'imperial' ? '°F' : '°C'
+  const windUnitLabel = unit === 'imperial' ? 'mph' : 'km/h'
 
   async function fetchWeather(query) {
     const resolvedCity = query.trim() || defaultCity
@@ -55,8 +67,8 @@ function App() {
       !apiKey.includes('your_openweather_api_key_here')
 
     if (!hasUsableApiKey) {
-      setWeather(buildFallbackWeather(resolvedCity))
-      setForecast(buildFallbackForecast())
+      setWeather(buildFallbackWeather(resolvedCity, unit))
+      setForecast(buildFallbackForecast(unit))
       setIsDemoMode(true)
       setStatus('OpenWeatherMap API key is missing. Add a real key to .env.local and restart the dev server for live weather data.')
       setLoading(false)
@@ -70,10 +82,10 @@ function App() {
     try {
       const [currentResponse, forecastResponse] = await Promise.all([
         fetch(
-          `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(resolvedCity)}&appid=${apiKey}&units=metric`,
+          `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(resolvedCity)}&appid=${apiKey}&units=${unit}`,
         ),
         fetch(
-          `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(resolvedCity)}&appid=${apiKey}&units=metric`,
+          `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(resolvedCity)}&appid=${apiKey}&units=${unit}`,
         ),
       ])
 
@@ -113,8 +125,8 @@ function App() {
       })
       setForecast(dailyForecast)
     } catch (err) {
-      setWeather(buildFallbackWeather(resolvedCity))
-      setForecast(buildFallbackForecast())
+      setWeather(buildFallbackWeather(resolvedCity, unit))
+      setForecast(buildFallbackForecast(unit))
       setIsDemoMode(true)
       setStatus(err.message || 'Weather data could not be loaded right now. Showing sample data instead.')
     } finally {
@@ -123,8 +135,8 @@ function App() {
   }
 
   useEffect(() => {
-    fetchWeather(defaultCity)
-  }, [apiKey])
+    fetchWeather(city)
+  }, [apiKey, unit])
 
   function handleSubmit(event) {
     event.preventDefault()
@@ -153,6 +165,23 @@ function App() {
           />
           <button type="submit">{loading ? 'Loading…' : 'Show weather'}</button>
         </form>
+
+        <div className="unit-toggle" aria-label="Temperature unit selector">
+          <button
+            type="button"
+            className={unit === 'metric' ? 'active' : ''}
+            onClick={() => setUnit('metric')}
+          >
+            °C
+          </button>
+          <button
+            type="button"
+            className={unit === 'imperial' ? 'active' : ''}
+            onClick={() => setUnit('imperial')}
+          >
+            °F
+          </button>
+        </div>
       </section>
 
       {status ? <p className={`status ${isDemoMode ? 'info' : 'error'}`}>{status}</p> : null}
@@ -163,11 +192,11 @@ function App() {
             <div>
               <p className="eyebrow">Now in {weather.city}</p>
               <h2>
-                {weather.temperature}°C
+                {formatTemperature(weather.temperature)}{unitLabel}
                 <span>{weather.description}</span>
               </h2>
               <p className="current-meta">
-                Feels like {weather.feelsLike}°C · Humidity {weather.humidity}% · Wind {weather.wind} km/h
+                Feels like {formatTemperature(weather.feelsLike)}{unitLabel} · Humidity {weather.humidity}% · Wind {formatTemperature(weather.wind)} {windUnitLabel}
               </p>
             </div>
 
@@ -212,7 +241,7 @@ function App() {
                 <article key={day.date} className="forecast-card">
                   <p>{formatDay(day.date)}</p>
                   <img src={`https://openweathermap.org/img/wn/${day.icon}.png`} alt={day.condition} />
-                  <strong>{day.temp}°C</strong>
+                  <strong>{formatTemperature(day.temp)}{unitLabel}</strong>
                   <span>{day.condition}</span>
                 </article>
               ))}
