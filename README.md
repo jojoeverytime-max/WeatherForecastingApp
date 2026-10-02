@@ -66,7 +66,29 @@ npm run dev
 npm run build
 npm run preview
 npm run lint
+npm run mobile
+npm run mobile:android
+npm run mobile:ios
+npm run mobile:web
+npm run mobile:login
 ```
+
+## Mobile App
+
+The Expo app in `mobile/` runs on Android and iOS while the Vite web app remains available at the repository root.
+
+1. Install mobile dependencies with `npm --prefix mobile install`.
+2. Create `mobile/.env.local` with your OpenWeatherMap key:
+
+   ```env
+   EXPO_PUBLIC_OPENWEATHER_API_KEY=your_openweather_api_key_here
+   ```
+
+3. Start Expo from the repository root with `npm run mobile`, then scan the QR code with Expo Go. Use `npm run mobile:android` for an Android emulator. Building or running the iOS simulator requires macOS; an iPhone can use Expo Go.
+
+Use `npm run mobile:login` to sign in to Expo from the repository root when an Expo account is needed. Expo Go local development does not require an account.
+
+The `EXPO_PUBLIC_` key is bundled into the client app and is visible to its users. Restrict the key in your OpenWeatherMap account. Without a valid key, the app displays sample conditions.
 
 ## Notes
 
